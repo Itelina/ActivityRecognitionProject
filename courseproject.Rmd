@@ -1,0 +1,56 @@
+---
+title: "Practical Machine Learning Course Project"
+author: "Itelina Xiaoye Ma"
+date: "Sunday, June 21, 2015"
+output: html_document
+---
+
+The first part of this assignment is to clean up the dataset and create features for the predictive model. 
+```{r}
+library(caret)
+library(kernlab)
+library(ggplot2)
+
+temp1 = tempfile()
+download.file("http://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv", temp1)
+training = read.csv(temp1)
+
+temp2 = tempfile()
+download.file("http://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv", temp2)
+testing = read.csv(temp2)
+
+numeric <- function(x){as.numeric(as.character(x))}
+training[, 8:159] <- sapply(training[, 8:159], numeric)
+testing[, 8:159] <- sapply(testing[, 8:159], numeric)
+```
+
+Some of the data entries contained summary entries (kurtosis, etc), while others contain the actual individual entries recorded from the tracking equipment. We clean up the dataset to exclude the summary entries. Other variables 
+
+```{r}
+#Split training dataset into summary or detailed datasets
+trainingSummary <- training[which(training$new_window %in% "yes"),]
+trainingDetailed <- training[which(training$new_window %in% "no"),]
+
+#We eliminate the variables which contain zero variance from the features list
+nsv <- nearZeroVar(trainingDetailed, saveMetrics=TRUE)
+eliminate <- rownames(nsv)[which(nsv$zeroVar %in% TRUE)]
+trainingDetailed <- trainingDetailed[, which(!colnames(trainingDetailed) %in% eliminate)]
+
+#Split detailed dataset into training and validation datasets
+inTrain <- createDataPartition(y=trainingDetailed$classe, p=0.25, list=FALSE)
+training1 <- trainingDetailed[inTrain,]
+validation1 <- trainingDetailed[-inTrain,]
+
+#Take out timekeeping variables such as timestamp, numeric windows, etc
+training1 <- training1[, 7:59]
+```
+
+We apply a random forest predictive model
+```{r}
+modFit <- train(classe ~., data=training1, method = "rf", prox=TRUE)
+modFit
+
+pred <- predict(modFit, newdata=validation1)
+confusionMatrix(pred, validation1$classe)
+
+```
